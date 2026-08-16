@@ -1,0 +1,325 @@
+
+
+=== PAGE 1 ===
+GeoMorphX 
+Framework híbrido para geomorfometría avanzada y visualización inteligente del relieve 
+(Documento interno – versión privada, no destinada a publicación) 
+0. Estado del documento 
+Este documento sintetiza todas las discusiones conceptuales, técnicas, legales y científicas asociadas al 
+proyecto GeoMorphX, tal como se concibe actualmente. 
+No tiene fines de difusión pública. Su objetivo es servir como: 
+• 
+guía de diseño interno, 
+• 
+marco conceptual unificado, 
+• 
+base para desarrollo de una beta funcional, 
+• 
+referencia futura para papers, grants o doctorado. 
+1. Visión general 
+GeoMorphX es un framework científico-computacional orientado al análisis geomorfométrico avanzado de 
+Modelos Digitales de Elevación (DEM), con especial énfasis en: 
+• 
+índices derivados tipo RRIM (Red Relief Image Map), 
+• 
+análisis multiescala, 
+• 
+anisotropía direccional, 
+• 
+estructura y complejidad del relieve, 
+• 
+fusión de información geomorfológica con contexto estructural. 
+El proyecto no se concibe como un plugin GIS, sino como un motor científico independiente, capaz de 
+escalar desde experimentación académica hasta aplicaciones regionales o continentales, manteniendo: 
+• 
+reproducibilidad, 
+• 
+trazabilidad metodológica, 
+• 
+alto rendimiento computacional. 
+Los SIG (QGIS u otros) actúan exclusivamente como frontends de visualización, no como entornos de 
+cálculo. 
+2. Motivación científica 
+Las herramientas GIS actuales presentan limitaciones estructurales claras: 
+• 
+fuerte énfasis en índices geomorfométricos básicos (slope, curvature, TPI), 
+• 
+escasa incorporación de métodos avanzados descritos en la literatura científica, 
+• 
+capacidades multiescala y direccionales limitadas o inexistentes, 
+• 
+baja escalabilidad computacional para análisis regionales, 
+• 
+dependencia excesiva de GUI y flujos no reproducibles. 
+Existe una brecha clara entre: 
+literatura geomorfométrica avanzada ↔ herramientas GIS operativas 
+
+
+=== PAGE 2 ===
+GeoMorphX nace para cerrar esa brecha, actuando como un puente entre investigación de frontera y 
+práctica analítica reproducible. 
+3. Principios de diseño 
+1. Separación estricta entre ciencia y GUI 
+Todo cálculo ocurre fuera del SIG. 
+2. CLI-first y API-first 
+El uso por línea de comandos y API programática es prioritario. 
+3. Escalabilidad real 
+Soporte para tiles, paralelismo y datasets extensos. 
+4. Reproducibilidad científica 
+Cada output es trazable a parámetros explícitos. 
+5. Extensibilidad metodológica 
+El framework está diseñado para incorporar nuevos índices y enfoques. 
+6. Neutralidad legal y académica 
+Implementaciones existentes se usan como referencia metodológica, no como productos. 
+4. Filosofía legal y metodológica (uso de RRIM) 
+GeoMorphX incluye una implementación académica, no comercial, del método RRIM, basada 
+exclusivamente en la literatura publicada. 
+• 
+RRIM es un método desarrollado originalmente por Asia Air Survey Co., Ltd. 
+• 
+La implementación en GeoMorphX: 
+o no está afiliada ni avalada por dicha entidad, 
+o se utiliza como baseline metodológico, 
+o sirve como punto de partida para extensiones científicas. 
+El objetivo no es reproducir un producto, sino: 
+• 
+permitir reproducibilidad académica, 
+• 
+evaluar limitaciones, 
+• 
+proponer variantes metodológicas. 
+A partir de este baseline, GeoMorphX desarrolla RRIM++, que incluye extensiones propias. 
+5. Arquitectura general 
+5.1 Enfoque híbrido Python + Rust 
+Se adopta una arquitectura híbrida para maximizar: 
+• 
+productividad científica, 
+• 
+rendimiento computacional, 
+• 
+escalabilidad futura. 
+Python actúa como capa científica y de orquestación; Rust como backend numérico optimizado. 
+
+
+=== PAGE 3 ===
+6. Core científico – Python 
+6.1 Rol 
+Python constituye el núcleo científico inicial del proyecto. 
+Funciones principales: 
+• 
+implementación académica del RRIM clásico (baseline), 
+• 
+RRIM multiescala, 
+• 
+RRIM anisotrópico, 
+• 
+RRIM extendido (RRIM++), 
+• 
+prototipado de nuevos índices geomorfométricos, 
+• 
+validación metodológica contra literatura, 
+• 
+experimentación controlada. 
+6.2 Stack tecnológico 
+• 
+NumPy 
+• 
+SciPy 
+• 
+rasterio 
+• 
+xarray (opcional) 
+• 
+scikit-image (textura, estructura, tensores) 
+• 
+Numba (aceleración selectiva) 
+• 
+Jupyter (validación y exploración) 
+6.3 Ventajas 
+• 
+traducción directa de papers a código, 
+• 
+iteración rápida, 
+• 
+máxima transparencia científica. 
+7. Motor optimizado – Rust 
+7.1 Rol 
+Rust se incorpora en fases posteriores como motor de alto rendimiento. 
+Funciones: 
+• 
+reescritura de kernels computacionalmente intensivos, 
+• 
+paralelismo real (multi-core), 
+• 
+procesamiento por tiles, 
+• 
+manejo eficiente de memoria. 
+7.2 Justificación 
+• 
+rendimiento cercano a C++, 
+
+
+=== PAGE 4 ===
+• 
+seguridad de memoria, 
+• 
+robustez para escalas regionales/continentales. 
+8. Inputs del sistema 
+8.1 Input mínimo (obligatorio) 
+• 
+DEM raster 
+o cualquier resolución, 
+o proyección métrica recomendada, 
+o single-band. 
+Con este único input, GeoMorphX es plenamente funcional. 
+8.2 Inputs opcionales (extensibilidad) 
+El diseño del framework permite inputs adicionales: 
+a) Derivados geomorfométricos preexistentes 
+• 
+slope, aspect, curvature, 
+• 
+TPI, TRI, 
+• 
+SVF, openness externos. 
+b) Máscaras y control espacial 
+• 
+máscaras NoData, 
+• 
+cuerpos de agua, glaciares, 
+• 
+AOI vectorial, 
+• 
+zonas de interés. 
+c) Inputs direccionales / estructurales 
+• 
+mapas de azimuth dominante, 
+• 
+lineamientos, 
+• 
+tensores estructurales. 
+d) Multiescala explícita 
+• 
+DEM suavizados, 
+• 
+DEM generalizados, 
+• 
+pirámides de resolución. 
+e) Inputs no topográficos (fase avanzada) 
+• 
+imágenes ópticas, 
+• 
+SAR, 
+• 
+mapas geofísicos, 
+• 
+capas geoquímicas interpoladas. 
+
+
+=== PAGE 5 ===
+9. Outputs 
+GeoMorphX produce: 
+• 
+rasters finales listos para visualización, 
+• 
+rasters intermedios opcionales (debug/validación), 
+• 
+metadatos completos: 
+o parámetros, 
+o escalas, 
+o método, 
+o versión del framework. 
+Los outputs son independientes del SIG. 
+10. Frontends 
+10.1 CLI (principal) 
+Interfaz primaria del sistema. 
+Ejemplo conceptual: 
+geomorphx compute \ 
+  --dem dem.tif \ 
+  --method rrim_multiscale \ 
+  --scales 5,15,45 \ 
+  --anisotropic true 
+Permite: 
+• 
+procesamiento batch, 
+• 
+automatización, 
+• 
+uso en HPC. 
+10.2 Python API 
+• 
+integración en notebooks, 
+• 
+uso por terceros proyectos científicos, 
+• 
+scripting avanzado. 
+10.3 Plugin QGIS (opcional) 
+• 
+interfaz gráfica ligera, 
+• 
+selección de parámetros básicos, 
+• 
+visualización de outputs. 
+QGIS no ejecuta cálculo científico. 
+ 
+
+
+=== PAGE 6 ===
+11. Estructura del repositorio 
+GeoMorphX/ 
+├── core_py/        # Núcleo científico (Python) 
+├── core_rs/        # Kernels optimizados (Rust) 
+├── geomorphx/      # API unificada 
+├── cli/            # CLI 
+├── qgis_plugin/    # Frontend QGIS 
+├── notebooks/      # Validación científica 
+├── benchmarks/     # Tests de rendimiento 
+└── paper/          # Manuscritos y figuras 
+12. Roadmap 
+Fase 1 – Fundacional 
+• 
+RRIM baseline 
+• 
+RRIM multiescala 
+• 
+validación científica 
+Fase 2 – Extensión 
+• 
+RRIM anisotrópico 
+• 
+RRIM++ 
+• 
+nuevos índices 
+• 
+CLI estable 
+Fase 3 – Escalabilidad 
+• 
+kernels en Rust 
+• 
+tiles grandes 
+• 
+benchmarks 
+Fase 4 – Difusión (futura) 
+• 
+paper metodológico 
+• 
+publicación open-source 
+• 
+integración GIS 
+13. Proyección académica 
+GeoMorphX está concebido como: 
+• 
+base para uno o más papers metodológicos, 
+• 
+plataforma extensible para doctorado, 
+• 
+infraestructura reusable por terceros. 
+
+
+=== PAGE 7 ===
+Cita esperada: 
+“DEM analysis was performed using the GeoMorphX framework (vX.X).” 
+14. Declaración final 
+GeoMorphX no busca reemplazar a los SIG existentes, sino elevar el nivel científico del análisis 
+geomorfométrico, desacoplando la ciencia del GUI y permitiendo análisis reproducibles, escalables y 
+metodológicamente sólidos. 
+Este documento representa el estado conceptual completo del proyecto antes de su primera beta funcional. 

@@ -1,0 +1,51 @@
+"""Core scientific methods for GeoMorphX."""
+
+from core_py.geomorphx_core.rrim import (
+    rrim_anisotropic,
+    rrim_anisotropic_multiscale,
+    rrim_baseline,
+    rrim_multiscale,
+    rrim_plus,
+    rrim_plus_components,
+    rrim_structural,
+    rrim_structural_multiscale,
+)
+from core_py.geomorphx_core.terrain import (
+    aspect_deg,
+    hillshade,
+    mean_curvature,
+    multidirectional_hillshade,
+    negative_openness,
+    plan_curvature,
+    positive_openness,
+    profile_curvature,
+    sky_view_factor,
+    slope_deg,
+    tpi,
+    tri,
+    wetness_proxy,
+)
+
+__all__ = [
+    "rrim_baseline",
+    "rrim_multiscale",
+    "rrim_anisotropic",
+    "rrim_anisotropic_multiscale",
+    "rrim_structural",
+    "rrim_structural_multiscale",
+    "rrim_plus",
+    "rrim_plus_components",
+    "slope_deg",
+    "aspect_deg",
+    "hillshade",
+    "multidirectional_hillshade",
+    "positive_openness",
+    "negative_openness",
+    "sky_view_factor",
+    "profile_curvature",
+    "plan_curvature",
+    "mean_curvature",
+    "tpi",
+    "tri",
+    "wetness_proxy",
+]

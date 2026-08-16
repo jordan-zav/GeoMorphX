@@ -1,0 +1,18 @@
+[general]
+name=GeoMorphX RRIM Suite
+qgisMinimumVersion=3.22
+description=Classic RRIM + GeoMorphX suite + geomorphometry blocks for QGIS
+about=Built from the released QGIS-RRIM template and extended to expose GeoMorphX suite tools in QGIS Processing: compute, compute-batch, benchmark, benchmark-batch, geomorphons (simplified), curvature block, and TPI/wetness proxy block.
+version=0.4.0
+author=GeoMorphX
+email=
+repository=
+tracker=
+homepage=
+experimental=False
+deprecated=False
+hasProcessingProvider=yes
+icon=icon.png
+category=Raster
+tags=RRIM,geomorphometry,terrain,DEM,benchmark,geomorphons,curvature,TPI,TWI
+license=MIT

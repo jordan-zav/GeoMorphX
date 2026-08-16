@@ -1,0 +1,31 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+build/
+dist/
+
+# Rust build outputs
+core_rs/target/
+
+# Generated terrain and benchmark outputs
+outputs/
+benchmarks/out/
+benchmarks/batch_out/
+*.tif
+*.tiff
+*.aux.xml
+
+# Independent/legacy nested repository
+qgis_rrim/
+
+# OS/editor files
+desktop.ini
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

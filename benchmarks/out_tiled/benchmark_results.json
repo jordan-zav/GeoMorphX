@@ -1,0 +1,70 @@
+{
+  "source": "synthetic:128",
+  "dem_shape": [
+    128,
+    128
+  ],
+  "tile_size": 0,
+  "rows": [
+    {
+      "method": "rrim_baseline",
+      "repeats": 1,
+      "runtime_ms_mean": 67.13169999784441,
+      "runtime_ms_std": 0.0,
+      "output_min": 0.03549612686038017,
+      "output_max": 0.9998953342437744,
+      "output_mean": 0.6768273115158081,
+      "output_std": 0.14060667157173157
+    },
+    {
+      "method": "rrim_multiscale",
+      "repeats": 1,
+      "runtime_ms_mean": 135.9593000015593,
+      "runtime_ms_std": 0.0,
+      "output_min": 0.06654492020606995,
+      "output_max": 0.9736210107803345,
+      "output_mean": 0.6778339147567749,
+      "output_std": 0.13346047699451447
+    },
+    {
+      "method": "rrim_anisotropic",
+      "repeats": 1,
+      "runtime_ms_mean": 70.35499999983585,
+      "runtime_ms_std": 0.0,
+      "output_min": 0.014839918352663517,
+      "output_max": 0.9991075992584229,
+      "output_mean": 0.4733515977859497,
+      "output_std": 0.1819712370634079
+    },
+    {
+      "method": "rrim_anisotropic_multiscale",
+      "repeats": 1,
+      "runtime_ms_mean": 134.79019999795128,
+      "runtime_ms_std": 0.0,
+      "output_min": 0.027259433642029762,
+      "output_max": 0.9792996644973755,
+      "output_mean": 0.47375422716140747,
+      "output_std": 0.17808598279953003
+    },
+    {
+      "method": "rrim_structural",
+      "repeats": 1,
+      "runtime_ms_mean": 207.62480000121286,
+      "runtime_ms_std": 0.0,
+      "output_min": 0.0,
+      "output_max": 1.0,
+      "output_mean": 0.5579303503036499,
+      "output_std": 0.29079103469848633
+    },
+    {
+      "method": "rrim_plus",
+      "repeats": 1,
+      "runtime_ms_mean": 494.9708999993163,
+      "runtime_ms_std": 0.0,
+      "output_min": 0.0,
+      "output_max": 1.0,
+      "output_mean": 0.4974243640899658,
+      "output_std": 0.18658524751663208
+    }
+  ]
+}
