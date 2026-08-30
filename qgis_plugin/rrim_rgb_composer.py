@@ -199,7 +199,7 @@ class RRIMRGBComposer(QgsProcessingAlgorithm):
             "-----------------------------------------------------------<br>"
             "&copy; 2025 <a href='https://linkedin.com/in/jordan-zav'><b>Zavaleta, J.</b></a><br>"
             "<i>Geological Engineering Undergraduate Student at UNI</i><br>"
-            "Released under the MIT License"
+            "Released under the GNU GPLv3 License"
         )
 
     def icon(self):

@@ -15,4 +15,4 @@ hasProcessingProvider=yes
 icon=icon.png
 category=Raster
 tags=RRIM,geomorphometry,terrain,DEM,benchmark,geomorphons,curvature,TPI,TWI
-license=MIT
+license=GPL-3.0-or-later
