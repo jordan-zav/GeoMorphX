@@ -1,25 +1,16 @@
-# GeoMorphX Standalone Program
+# Standalone compatibility interface
 
-Programa standalone (fuera de QGIS) para correr la suite de GeoMorphX.
+QGIS is the primary GeoMorphX desktop interface. See the project README and
+QGIS plugin guide for the workbench, ZIP installation and Processing tools.
 
-## GUI directa
+The standalone GUI is retained for existing users and environments without
+QGIS. It shares the 32-method core rather than maintaining separate numerical
+implementations. Launch it with geomorphx-gui or run_standalone_gui.bat from a
+configured environment. The separate geomorphx-standalone command provides
+compute-batch and benchmark-batch.
 
-- Doble click en `run_standalone_gui.bat`
-- o terminal: `geomorphx-gui`
-
-## Métodos (GUI Compute)
-
-- RRIM: `rrim_baseline`, `rrim_multiscale`, `rrim_anisotropic`, `rrim_anisotropic_multiscale`, `rrim_structural`, `rrim_plus`
-- Geomorfometría general: `slope`, `aspect`, `hillshade`, `curvature_profile`, `curvature_plan`, `curvature_mean`, `tpi`, `tri`, `wetness_proxy`
-
-## Comandos
-
-- `compute-batch`
-- `benchmark-batch`
-
-## Ejemplos
-
-```bash
-geomorphx-standalone compute-batch --dem-dir data/dems --out-dir outputs --recursive --method rrim_plus --save-debug
-geomorphx-standalone benchmark-batch --dem-dir data/dems --out-dir benchmarks/batch --recursive
-```
+The primary geomorphx CLI and Python API support portable recipe automation.
+No new standalone installer has been produced. Method, memory and validation
+limits are the same as in the shared core. See the development guide for Python
+package setup; installing the QGIS ZIP does not install standalone command entry
+points into another Python environment.

@@ -124,6 +124,6 @@ def generate_comparison_report(
     report.append("")
     report.append("### Notas de Interpretación:")
     report.append(f"- **Entropía de Shannon**: Mide el grado de detalle e información visual de la imagen. Valores más altos indican una mayor cantidad de rasgos/micro-relieves capturados.")
-    report.append(f"- **Contraste Local (Gradiente)**: Indica qué tan pronunciadas son las transiciones locales (bordes y pendientes). Un ratio > 1.0 significa que `{name2}` resalta los detalles del terreno con mayor fuerza que `{name1}`.")
+    report.append(f"- **Contraste Local (Gradiente)**: Indica qué tan pronunciadas son las transiciones locales (bordes y pendientes). Un ratio > 1.0 significa que {name2} resalta los detalles del terreno con mayor fuerza que {name1}.")
 
     return "\n".join(report)

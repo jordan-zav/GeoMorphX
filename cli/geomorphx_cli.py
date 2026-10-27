@@ -6,9 +6,11 @@ import argparse
 import json
 from pathlib import Path
 
+from geomorphx.methods import METHODS
 from geomorphx.api import compute_rrim, compute_rrim_batch
 from geomorphx.benchmark import run_benchmark_batch, run_benchmark_suite
-from geomorphx.recommendations import available_objectives, execute_recipe, recommend
+from geomorphx.recommendations import available_objectives, recommend
+from geomorphx.recipes import execute_recipe, load_recipe, normalize_recipe, save_recipe
 
 
 def _parse_scales(raw: str) -> list[int]:
@@ -32,31 +34,12 @@ def build_parser() -> argparse.ArgumentParser:
     compute.add_argument(
         "--method",
         default="rrim_baseline",
-        choices=[
-            "rrim_baseline",
-            "rrim_multiscale",
-            "rrim_anisotropic",
-            "rrim_anisotropic_multiscale",
-            "rrim_structural",
-            "rrim_structural_multiscale",
-            "rrim_plus",
-            "slope",
-            "aspect",
-            "hillshade",
-            "multidirectional_hillshade",
-            "positive_openness",
-            "negative_openness",
-            "sky_view_factor",
-            "curvature_profile",
-            "curvature_plan",
-            "curvature_mean",
-            "tpi",
-            "tri",
-            "wetness_proxy",
-        ],
+        choices=METHODS,
         help="Processing method",
     )
     compute.add_argument("--window", type=int, default=9, help="Window size (odd, >=3)")
+    compute.add_argument("--flatness-deg", type=float, default=1.0, help="Geomorphon flatness angle in degrees")
+    compute.add_argument("--geomorphon-skip", type=int, default=0, help="Geomorphon inner ray steps to skip")
     compute.add_argument("--scales", type=str, default="5,15,45", help="Comma-separated multiscale windows")
     compute.add_argument("--azimuth", type=str, default="0.0", help="Directional azimuth(s) in degrees (single value or comma-separated values)")
     compute.add_argument("--directional-weight", type=float, default=0.5, help="Anisotropic directional weight")
@@ -65,6 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     compute.add_argument("--structural-weight", type=float, default=0.15, help="RRIM++ structural weight")
     compute.add_argument("--debug-dir", type=Path, default=None, help="Optional folder for intermediate rasters")
     compute.add_argument("--tile-size", type=int, default=0, help="Tile size for tiled computing (0 disables)")
+    compute.add_argument("--scratch-dir", type=Path, default=None, help="Directory for retained RRIM raster stages")
 
     compute_batch = sub.add_parser("compute-batch", help="Compute RRIM products for multiple DEM files")
     compute_batch.add_argument("--dem-dir", required=True, type=Path, help="Directory with .tif/.tiff DEM files")
@@ -74,31 +58,12 @@ def build_parser() -> argparse.ArgumentParser:
     compute_batch.add_argument(
         "--method",
         default="rrim_baseline",
-        choices=[
-            "rrim_baseline",
-            "rrim_multiscale",
-            "rrim_anisotropic",
-            "rrim_anisotropic_multiscale",
-            "rrim_structural",
-            "rrim_structural_multiscale",
-            "rrim_plus",
-            "slope",
-            "aspect",
-            "hillshade",
-            "multidirectional_hillshade",
-            "positive_openness",
-            "negative_openness",
-            "sky_view_factor",
-            "curvature_profile",
-            "curvature_plan",
-            "curvature_mean",
-            "tpi",
-            "tri",
-            "wetness_proxy",
-        ],
+        choices=METHODS,
         help="Processing method",
     )
     compute_batch.add_argument("--window", type=int, default=9, help="Window size (odd, >=3)")
+    compute_batch.add_argument("--flatness-deg", type=float, default=1.0, help="Geomorphon flatness angle in degrees")
+    compute_batch.add_argument("--geomorphon-skip", type=int, default=0, help="Geomorphon inner ray steps to skip")
     compute_batch.add_argument("--scales", type=str, default="5,15,45", help="Comma-separated multiscale windows")
     compute_batch.add_argument("--azimuth", type=str, default="0.0", help="Directional azimuth(s) in degrees (single value or comma-separated values)")
     compute_batch.add_argument("--directional-weight", type=float, default=0.5, help="Anisotropic directional weight")
@@ -107,6 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
     compute_batch.add_argument("--structural-weight", type=float, default=0.15, help="RRIM++ structural weight")
     compute_batch.add_argument("--save-debug", action="store_true", help="Save intermediate rasters where applicable")
     compute_batch.add_argument("--tile-size", type=int, default=0, help="Tile size for tiled computing (0 disables)")
+    compute_batch.add_argument("--scratch-dir", type=Path, default=None, help="Directory for retained RRIM raster stages")
 
     benchmark = sub.add_parser("benchmark", help="Run method comparison benchmarks")
     benchmark.add_argument("--out-dir", required=True, type=Path, help="Output directory for benchmark artifacts")
@@ -152,10 +118,14 @@ def build_parser() -> argparse.ArgumentParser:
     recommend_parser.add_argument("--feature-max-m", type=float, default=None, help="Maximum target feature size in metres")
     recommend_parser.add_argument("--out", type=Path, default=None, help="Optional JSON recipe output path")
 
-    run_recipe = sub.add_parser("run-recipe", help="Run a terrain-visualization recommendation recipe")
-    run_recipe.add_argument("--recipe", required=True, type=Path, help="Recipe JSON created by geomorphx recommend")
+    run_recipe = sub.add_parser("run-recipe", help="Run a portable or legacy GeoMorphX recipe")
+    run_recipe.add_argument("--recipe", required=True, type=Path, help="Recipe JSON from the panel, CLI or Python API")
     run_recipe.add_argument("--dem", required=True, type=Path, help="Input DEM GeoTIFF")
     run_recipe.add_argument("--out-dir", required=True, type=Path, help="Directory for generated layers and manifest")
+
+    validate_recipe = sub.add_parser("validate-recipe", help="Validate all recipe parameters without reading a DEM")
+    validate_recipe.add_argument("--recipe", required=True, type=Path)
+    validate_recipe.add_argument("--out", type=Path, help="Optional canonical JSON output")
 
     return parser
 
@@ -179,6 +149,9 @@ def main(argv: list[str] | None = None) -> int:
             roughness_weight=args.roughness_weight,
             structural_weight=args.structural_weight,
             debug_dir=args.debug_dir,
+            scratch_dir=args.scratch_dir,
+            flatness_deg=args.flatness_deg,
+            geomorphon_skip=args.geomorphon_skip,
             tile_size=args.tile_size,
         )
         print(f"Generated: {out}")
@@ -202,6 +175,9 @@ def main(argv: list[str] | None = None) -> int:
             roughness_weight=args.roughness_weight,
             structural_weight=args.structural_weight,
             save_debug=args.save_debug,
+            scratch_dir=args.scratch_dir,
+            flatness_deg=args.flatness_deg,
+            geomorphon_skip=args.geomorphon_skip,
             tile_size=args.tile_size,
         )
         print(f"Computed files: {len(outputs)}")
@@ -297,20 +273,27 @@ def main(argv: list[str] | None = None) -> int:
             feature_min_m=args.feature_min_m,
             feature_max_m=args.feature_max_m,
         )
+        recipe = normalize_recipe(recipe)
         rendered = json.dumps(recipe, indent=2, ensure_ascii=False)
         if args.out is not None:
-            args.out.parent.mkdir(parents=True, exist_ok=True)
-            args.out.write_text(rendered + "\n", encoding="utf-8")
+            save_recipe(recipe, args.out)
             print(f"Recipe: {args.out}")
         else:
             print(rendered)
         return 0
 
     if args.command == "run-recipe":
-        recipe = json.loads(args.recipe.read_text(encoding="utf-8"))
+        recipe = load_recipe(args.recipe)
         outputs, manifest = execute_recipe(recipe, dem_path=args.dem, out_dir=args.out_dir)
         print(f"Generated layers: {len(outputs)}")
         print(f"Manifest: {manifest}")
+        return 0
+
+    if args.command == "validate-recipe":
+        recipe = load_recipe(args.recipe)
+        if args.out is not None:
+            save_recipe(recipe, args.out)
+        print(f"Valid recipe: {len(recipe['products'])} products ({recipe['schema_version']})")
         return 0
 
     parser.error(f"Unsupported command: {args.command}")

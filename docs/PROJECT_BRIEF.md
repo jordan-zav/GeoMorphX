@@ -1,28 +1,27 @@
-# GeoMorphX – Brief Ejecutivo
+# Original project brief
 
-## Fuente
-Este brief se deriva de `docs/GeoMorphX.pdf` (documento interno).
+This is a historical design summary derived from the local conceptual PDF.
+For current features and limits, see [Status](STATUS.md) and the
+[project README](../README.md).
 
-## Propósito
-Construir un framework científico-computacional para análisis geomorfométrico avanzado de DEM, con separación estricta entre cálculo científico y GUI.
+## Original purpose
 
-## Problema que resuelve
-Cerrar la brecha entre métodos geomorfométricos avanzados publicados en literatura y herramientas GIS operativas de uso cotidiano.
+Build a scientific/computational framework for advanced DEM geomorphometry,
+keeping numerical computation separate from the graphical interface. Bridge
+published terrain-analysis methods and practical everyday GIS workflows.
 
-## Principios clave
-- Ciencia desacoplada del SIG.
-- CLI-first y API-first.
-- Escalabilidad (tiles, paralelismo, datasets grandes).
-- Reproducibilidad y trazabilidad completa.
-- Extensibilidad metodológica.
+The original principles were an independent scientific core, API/CLI automation,
+progressive tiling and parallelism, reproducibility, traceable parameters and
+methodological extensibility. The initial MVP comprised RRIM baseline/multiscale,
+batch computation, raster outputs and JSON metadata.
 
-## MVP (beta funcional)
-- RRIM baseline.
-- RRIM multiescala.
-- CLI estable para cómputo batch.
-- Outputs raster + metadatos de parámetros.
+## Evolution of the design
 
-## Arquitectura objetivo
-- Python como núcleo científico inicial.
-- Rust como motor de kernels optimizados en fases posteriores.
-- QGIS como frontend opcional para visualización.
+Python remains the shared core; optional Rust kernels have been implemented.
+QGIS, initially described as an optional frontend, is now the primary desktop
+interface. Core computation and the Python API/CLI remain usable outside QGIS.
+The original two-method MVP is not the current catalogue or a claim of stable
+scientific validation. Plugin 0.5.1 is experimental.
+
+The conceptual PDF is historical planning material. Proposed features in it
+must be checked against the implementation plan and current status.

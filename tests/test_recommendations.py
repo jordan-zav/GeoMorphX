@@ -1,6 +1,9 @@
 from pathlib import Path
 
 import pytest
+import numpy as np
+import rasterio
+from rasterio.transform import from_origin
 
 import geomorphx.recommendations as recommendations
 from geomorphx.recommendations import available_objectives, execute_recipe, recommend
@@ -26,6 +29,25 @@ def test_recommendation_defaults_and_objective_contract():
     assert recipe["recommendations"][0]["method"] == "rrim_structural_multiscale"
 
 
+def test_equal_feature_sizes_generate_a_single_valid_window():
+    recipe = recommend("microtopography", pixel_size_m=1, feature_min_m=5, feature_max_m=5)
+    assert recipe["scale_windows_px"] == [5]
+    assert recipe["recommendations"][0]["parameters"]["window"] == 5
+
+
+def test_hydrology_recipe_contains_real_accumulation_and_twi():
+    recipe = recommend("hydrology", pixel_size_m=2)
+    assert [r["method"] for r in recipe["recommendations"]] == [
+        "fill_depressions", "flow_accumulation_d8", "twi_d8",
+    ]
+
+
+def test_landform_recipe_respects_minimum_diagonal_search_size():
+    recipe = recommend("landforms", pixel_size_m=2, feature_min_m=1, feature_max_m=1)
+    assert recipe["recommendations"][0]["method"] == "geomorphons"
+    assert recipe["recommendations"][0]["parameters"]["window"] == 7
+
+
 @pytest.mark.parametrize("kwargs", [
     {"pixel_size_m": 0.0},
     {"pixel_size_m": 1.0, "feature_min_m": 2.0},
@@ -47,7 +69,11 @@ def test_execute_recipe_writes_manifest_and_uses_explicit_parameters(tmp_path: P
 
     monkeypatch.setattr(recommendations, "compute_rrim", fake_compute_rrim)
     recipe = recommend("microtopography", pixel_size_m=1.0, feature_min_m=3.0, feature_max_m=9.0)
-    outputs, manifest = execute_recipe(recipe, dem_path="input.tif", out_dir=tmp_path)
+    source = tmp_path / "input.tif"
+    with rasterio.open(source, "w", driver="GTiff", count=1, height=11, width=11,
+                       dtype="float32", crs="EPSG:32718", transform=from_origin(0, 11, 1, 1)) as dst:
+        dst.write(np.zeros((11, 11), dtype=np.float32), 1)
+    outputs, manifest = execute_recipe(recipe, dem_path=source, out_dir=tmp_path)
 
     assert len(outputs) == 4
     assert manifest.exists()

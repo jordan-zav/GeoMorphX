@@ -29,3 +29,7 @@ desktop.ini
 Thumbs.db
 .idea/
 .vscode/
+
+# Local DevResources launch configuration
+.devresources.local.cmd
+.devresources.runner.ps1

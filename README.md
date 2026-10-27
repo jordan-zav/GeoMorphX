@@ -1,186 +1,122 @@
-<div align="center">
-
 # GeoMorphX
 
-**Geomorfometría multiescala y visualización inteligente del relieve**
+**Terrain analysis and multiscale relief visualization in QGIS.**
 
-Un mismo núcleo científico para procesar modelos digitales de elevación desde
-Python, la línea de comandos, una aplicación independiente o QGIS Processing.
+English | [Español](README.es.md)
 
-[![Status: beta](https://img.shields.io/badge/status-beta-f59e0b)](#estado-del-proyecto)
-[![Version 0.1.0](https://img.shields.io/badge/core-0.1.0-2563eb)](pyproject.toml)
-[![QGIS suite 0.4.0](https://img.shields.io/badge/QGIS%20suite-0.4.0-589632?logo=qgis&logoColor=white)](qgis_plugin/metadata.txt)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776ab?logo=python&logoColor=white)](https://www.python.org/)
-[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-0f766e)](LICENSE)
+GeoMorphX is an experimental QGIS plugin for exploring digital elevation models
+(DEMs). Select a project layer, prepare terrain products, save a reusable recipe
+and add the results to your map. The same Python core powers the dock, Processing,
+the Python API and command-line automation.
 
-</div>
+**Plugin 0.5.1 · Core 0.1.0 · GPL-3.0-or-later**
 
-> [!IMPORTANT]
-> GeoMorphX está en fase beta. Las capas derivadas dependen de la resolución,
-> unidades, proyección, calidad y escala del DEM. Una receta recomendada ayuda a
-> elegir parámetros, pero no sustituye la validación geomorfológica.
+![GeoMorphX workbench with a synthetic DEM](docs/images/qgis_workbench_0.5.0.png)
 
-## Flujo general
+## Install
 
-```text
-DEM proyectado y documentado
-            │
-            ▼
- Validación de resolución, NoData y unidades
-            │
-            ▼
- RRIM / apertura / sombreado / curvatura / TPI / TRI
-            │
-            ▼
- Composición multiescala, anisotrópica o estructural
-            │
-            ▼
- GeoTIFF + JSON trazable + capas intermedias opcionales
-            │
-            ├──► CLI / lotes / benchmarks
-            ├──► aplicación independiente
-            └──► QGIS Processing
-```
+Install a GeoMorphX plugin ZIP using **Plugins → Manage and Install Plugins →
+Install from ZIP** in QGIS. Enable GeoMorphX, then open **Raster → GeoMorphX →
+GeoMorphX Terrain Workbench** or its toolbar button.
 
-## Capacidades
+If you have a source checkout rather than a ZIP, build one from the repository
+root with Python 3.10 or newer:
 
-| Familia | Métodos incluidos |
+    python scripts/build_qgis_plugin.py --out-dir dist/qgis
+
+Install the generated ZIP, not an archive of the entire repository. The ZIP
+contains the Python core, both language guides, recipe schema and examples.
+Building this ZIP uses the Python standard library; it does not compile Rust.
+Generated archives are local artifacts and are excluded from Git.
+
+The plugin uses NumPy and GDAL supplied by QGIS. Rasterio is optional; the native
+GDAL adapter handles raster I/O when Rasterio is absent. No dependency installer
+changes the QGIS interpreter. Restart QGIS after replacing an already loaded
+GeoMorphX version.
+
+The declared range is **QGIS 3.28–3.x**. Integration has been checked on **QGIS
+3.44.12, Windows, Python 3.12**. Other platforms and versions still need testing.
+The plugin has not been submitted to the official QGIS plugin repository.
+
+## Start with a DEM
+
+1. Add a local, single-band DEM to your QGIS project. Use a projected CRS,
+   a north-up grid and matching horizontal and elevation units.
+2. Select it in the workbench and choose a method and its parameters.
+3. Click **Add product** for each desired result. Every product uses the original
+   DEM; the list does not chain derivatives together.
+4. Choose an output directory and click **Run and add layers**.
+5. Review the added layers, metadata and **Run log**. Geomorphon classes receive
+   a categorized legend.
+
+Each panel run creates a new folder with GeoTIFFs, metadata sidecars and JSON run
+manifests. Completed outputs are retained on failure or cancellation. Cancellation
+is checked between products; the current product finishes first.
+
+## Tools
+
+| Family | Included products |
 | --- | --- |
-| RRIM | Baseline, multiescala, anisotrópico, anisotrópico multiescala, estructural y RRIM+ |
-| Iluminación | Hillshade clásico y multidireccional |
-| Apertura | Apertura positiva, negativa y sky-view factor |
-| Derivadas | Pendiente, aspecto, curvatura de perfil, plana y media |
-| Contexto local | TPI, TRI y proxy de humedad topográfica |
-| Automatización | Cómputo individual/por lotes, recetas JSON y benchmarks reproducibles |
-| Integración | API de Python, CLI, GUI independiente y proveedor de QGIS Processing |
+| Relief visualization | Classic RRIM generator and RGB composer; seven experimental RRIM variants |
+| Illumination and openness | Hillshade, multidirectional hillshade, positive/negative openness and sky-view factor |
+| Terrain derivatives | Slope, aspect, profile/plan/mean curvature |
+| Local terrain context | TPI, local relief, Riley TRI and a wetness proxy |
+| Terrain forms | Ten-class line-of-sight geomorphons, canonical patterns and a separate legacy simplified model |
+| Additional hydrology | Depression filling, D8/MFD accumulation and TWI, D8 direction, outlet basins and flow length |
 
-## Variantes RRIM
+Processing exposes **43 tools**: the 32 shared methods as individual algorithms
+and 11 suite, block, classic RRIM, benchmark and recipe tools. They can be used
+in batch jobs and Model Designer. Existing provider and algorithm identifiers
+are retained. The main focus is geomorphometry and relief visualization.
 
-| Método | Objetivo |
-| --- | --- |
-| `rrim_baseline` | Composición RRIM convencional para una ventana |
-| `rrim_multiscale` | Integrar respuesta de varias ventanas físicas |
-| `rrim_anisotropic` | Resaltar respuesta respecto a un azimut controlado |
-| `rrim_anisotropic_multiscale` | Combinar orientación y escalas múltiples |
-| `rrim_structural` | Incorporar coherencia del tensor estructural |
-| `rrim_structural_multiscale` | Evaluar estructura en varias escalas y orientaciones |
-| `rrim_plus` | Combinar relieve, anisotropía, rugosidad y estructura |
+## Automate the same workflow
 
-## Entradas y productos
+A portable JSON recipe works in the panel, Processing, CLI and Python API.
+Older panel and recommendation recipes remain readable. For example, in the
+QGIS Python console with GeoMorphX enabled:
 
-### Entrada principal
+    import processing
 
-- DEM ráster, preferentemente GeoTIFF;
-- CRS proyectado y unidades horizontales/verticales conocidas;
-- píxel y extensión apropiados para el rasgo buscado; y
-- NoData correctamente declarado.
+    result = processing.run("geomorphx_rrim_suite:run_recipe", {
+        "INPUT_DEM": "D:/data/dem.tif",
+        "RECIPE": "D:/recipes/terrain.json",
+        "OUT_DIR": "D:/results/run_001",
+    })
 
-### Productos
+Use a fresh output directory for each recipe execution. See the
+[automation guide](docs/AUTOMATION.md) for Python, CLI, legacy formats,
+cancellation, manifests and runnable examples.
 
-- GeoTIFF georreferenciados;
-- metadatos JSON con método y parámetros;
-- componentes intermedios opcionales para auditoría;
-- CSV, JSON, Markdown y figura de rendimiento para benchmarks; y
-- resúmenes por lote cuando se procesan varios DEM.
+## Scientific status and limits
 
-## Instalación
+- Windows and scales are in pixels. Elevation units are not inferred or
+  converted; confirm that they match the horizontal units.
+- Local products use blocks with halos. Experimental RRIM uses global
+  normalization with retained scratch rasters. Hydrology still needs the full
+  DEM in memory, even when a block size is requested.
+- The seven RRIM core variants are experimental compositions with a legacy
+  unit-pixel convention. Their equivalence to classical RRIM is not validated.
+  The classic generator/composer remain separate tools.
+- Geomorphons implements the documented basic comparison, not all GRASS options.
+  Independent executable and field comparisons remain pending.
 
-La instalación editable usa Maturin y necesita una cadena de Rust disponible.
-Para lectura/escritura de ráster instala también el extra `raster`:
+The latest source suite passed **162 tests**, with **9 Rust tests skipped**
+because the extension was absent from that checkout. Real QGIS tests used an
+isolated profile and offscreen Qt widgets, including all 43 tools and shared
+recipes. These are integration and synthetic checks, not field validation.
+See [status and known issues](docs/STATUS.md), including the legacy RGB export
+diagnostic and remaining manual/platform tests.
 
-```powershell
-git clone https://github.com/jordan-zav/GeoMorphX.git
-cd GeoMorphX
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e ".[raster,scientific]"
-```
+## Documentation and development
 
-## Uso rápido
+- [User guide](docs/USER_GUIDE.md)
+- [Automation and recipes](docs/AUTOMATION.md)
+- [Geomorphon method and classes](docs/GEOMORPHONS.md)
+- [Memory, tiling and optional hydrology](docs/SCALABILITY.md)
+- [Development and packaging](docs/DEVELOPMENT.md)
+- [Documentation index](docs/README.md) · [Documentación en español](docs/README.es.md)
 
-```powershell
-geomorphx compute --dem dem.tif --out outputs/rrim.tif --method rrim_baseline --window 9
-geomorphx compute --dem dem.tif --out outputs/multiscale.tif --method rrim_multiscale --scales 5,15,45
-geomorphx compute --dem dem.tif --out outputs/structural.tif --method rrim_structural_multiscale --scales 5,15,45 --azimuth 0,45,90,135
-geomorphx compute-batch --dem-dir data/dems --out-dir outputs/batch --method rrim_plus --recursive --save-debug
-```
-
-### Recetas por objetivo
-
-```powershell
-geomorphx recommend --objective microtopography --pixel-size-m 0.5 --feature-min-m 2 --feature-max-m 10 --out recipe.json
-geomorphx run-recipe --recipe recipe.json --dem dem.tif --out-dir outputs/microtopography
-```
-
-La receta registra el objetivo, la escala espacial y los parámetros propuestos
-para que la decisión pueda revisarse y repetirse.
-
-### Benchmarks
-
-```powershell
-geomorphx benchmark --out-dir benchmarks/out --size 512 --repeats 3 --scales 5,15,45 --window 9 --tile-size 256
-geomorphx benchmark-batch --dem-dir data/dems --out-dir benchmarks/batch --recursive --repeats 3
-```
-
-Los benchmarks generan resultados CSV/JSON, informe Markdown y gráfico de
-tiempos cuando Matplotlib está disponible.
-
-## Interfaces
-
-| Interfaz | Uso |
-| --- | --- |
-| `geomorphx` | CLI principal para cómputo, recetas y benchmarks |
-| `geomorphx-gui` | Aplicación de escritorio independiente |
-| `run_standalone_gui.bat` | Inicio rápido de la GUI en Windows |
-| `qgis_plugin` | Algoritmos individuales y por lotes dentro de QGIS |
-
-El complemento QGIS conserva el generador/compositor RRIM clásico y añade
-bloques GeoMorphX de suite, geomorphons simplificados, curvatura, TPI y humedad.
-
-## Desarrollo y verificación
-
-```powershell
-python -m pytest -q
-```
-
-La suite cubre API, métodos de terreno, RRIM, teselado, recomendaciones,
-benchmarks, aplicación independiente y kernels Rust. Los resultados científicos
-deben compararse además con DEM sintéticos y casos de referencia conocidos.
-
-## Documentación y trazabilidad
-
-- [Documento maestro](docs/GeoMorphX.pdf)
-- [Cobertura del documento](docs/PDF_COVERAGE_STATUS.md)
-- [Requisitos](docs/REQUIREMENTS.md)
-- [Plan de implementación](docs/IMPLEMENTATION_PLAN.md)
-- [Benchmarks](benchmarks/README.md)
-- [Aplicación independiente](standalone_app/README.md)
-- [Complemento QGIS](qgis_plugin/README.md)
-
-## Mapa del repositorio
-
-| Ruta | Contenido |
-| --- | --- |
-| `core_py` | Núcleo científico de referencia en Python |
-| `core_rs` | Kernels optimizados en Rust |
-| `geomorphx` | API unificada, benchmarks, comparación y recomendaciones |
-| `cli` | Interfaz de línea de comandos |
-| `standalone_app` | Aplicación fuera de QGIS |
-| `qgis_plugin` | Proveedor y algoritmos QGIS Processing |
-| `tests` | Pruebas numéricas, funcionales y de integración |
-| `docs`, `paper` | Especificación, cobertura y material científico |
-
-## Estado del proyecto
-
-El núcleo está en versión 0.1.0 beta y la suite QGIS en 0.4.0. La arquitectura
-multisuperficie funciona, pero API, parámetros y formatos de receta todavía
-pueden cambiar. No se debe presentar una salida como interpretación geológica
-validada únicamente porque el procesamiento terminó correctamente.
-
-## Licencia y contacto
-
-GeoMorphX se distribuye bajo la [GNU General Public License v3.0](LICENSE).
-
-Jordan Zavaleta — GisGeo Dev<br>
-[jordanzav@gisgeo.dev](mailto:jordanzav@gisgeo.dev) · [gisgeo.dev](https://gisgeo.dev)
+QGIS is the primary desktop interface. The API and CLI remain available for
+automation; the standalone GUI is retained as a secondary compatibility
+interface. Rust accelerates selected kernels in the optional Python package.
+See [LICENSE](LICENSE) for software licensing.

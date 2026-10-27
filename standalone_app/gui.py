@@ -7,6 +7,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+from geomorphx.methods import METHODS
 from geomorphx.api import compute_rrim, compute_rrim_batch
 from geomorphx.benchmark import run_benchmark_batch, run_benchmark_suite
 
@@ -56,13 +57,37 @@ METHOD_DEFS = [
     },
     {"key": "curvature_mean", "name": "Mean Curvature", "help": "Curvatura media de la superficie."},
     {"key": "tpi", "name": "Topographic Position Index", "help": "Diferencia entre elevacion local y media vecina."},
-    {"key": "tri", "name": "Terrain Ruggedness Index", "help": "Mide variacion altimetrica local del terreno."},
+    {"key": "tri", "name": "Terrain Ruggedness Index", "help": "Rango local heredado; usa Tri Riley para el indice de Riley."},
     {
         "key": "wetness_proxy",
         "name": "Topographic Wetness Proxy",
         "help": "Indicador aproximado de humedad potencial basado en pendiente y relieve local.",
     },
 ]
+_EXTRA_HELP = {
+    "flow_direction_d8": "Direccion D8: 0 salida, 1 norte y 2 a 8 en sentido horario.",
+    "drainage_basins_d8": "Cuencas de las salidas D8; etiquetas en orden de filas.",
+    "flow_length_d8": "Distancia aguas abajo hasta la salida, en unidades del CRS.",
+    "flow_accumulation_mfd": "Area contribuyente fraccionaria por flujo multiple Freeman, exponente 1.1.",
+    "twi_mfd": "Humedad topografica con area de flujo multiple y pendiente del DEM rellenado.",
+    "geomorphons": "Diez formas por lineas de vision en ocho direcciones; umbral angular en grados.",
+    "geomorphon_ternary": "Patron ternario invariante a rotaciones y reflexiones (498 clases).",
+    "rrim_structural_multiscale": "Tensor estructural en multiples escalas y orientaciones.",
+    "multidirectional_hillshade": "Promedio de ocho direcciones de iluminacion.",
+    "positive_openness": "Apertura positiva del horizonte en grados.",
+    "negative_openness": "Apertura negativa del relieve invertido en grados.",
+    "sky_view_factor": "Fraccion visible aproximada del cielo.",
+    "local_relief": "Rango local de elevaciones: maximo menos minimo.",
+    "tri_riley": "Raiz de la suma de diferencias cuadraticas con ocho vecinos.",
+    "fill_depressions": "Rellena depresiones con Priority-Flood; bordes NoData abiertos.",
+    "flow_accumulation_d8": "Acumulacion D8 en celdas contribuyentes, incluida la propia.",
+    "twi_d8": "Humedad topografica D8 con area contribuyente y pendiente fisica.",
+}
+_known_methods = {item["key"] for item in METHOD_DEFS}
+METHOD_DEFS.extend(
+    {"key": key, "name": key.replace("_", " ").title(), "help": _EXTRA_HELP[key]}
+    for key in METHODS if key not in _known_methods
+)
 METHOD_NAME_TO_KEY = {item["name"]: item["key"] for item in METHOD_DEFS}
 METHOD_NAME_TO_HELP = {item["name"]: item["help"] for item in METHOD_DEFS}
 METHOD_NAMES = [item["name"] for item in METHOD_DEFS]
@@ -72,7 +97,7 @@ class GeoMorphXGUI(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("GeoMorphX Standalone")
-        self.geometry("900x680")
+        self.geometry("1000x850")
 
         self._build_ui()
 
@@ -132,6 +157,10 @@ class GeoMorphXGUI(tk.Tk):
         anisotropy_weight_var = tk.StringVar(value="0.3")
         roughness_weight_var = tk.StringVar(value="0.25")
         structural_weight_var = tk.StringVar(value="0.2")
+        flatness_var = tk.StringVar(value="1.0")
+        skip_var = tk.StringVar(value="0")
+        tile_var = tk.StringVar(value="0")
+        scratch_var = tk.StringVar(value="")
 
         ttk.Label(parent, text="Method").grid(row=start_row, column=0, sticky="w", padx=6, pady=6)
         ttk.Combobox(parent, textvariable=method_var, values=METHOD_NAMES, state="readonly").grid(
@@ -155,6 +184,10 @@ class GeoMorphXGUI(tk.Tk):
                 ("Anisotropy Weight", anisotropy_weight_var),
                 ("Roughness Weight", roughness_weight_var),
                 ("Structural Weight", structural_weight_var),
+                ("Geomorphon flatness (deg)", flatness_var),
+                ("Geomorphon skip (cells)", skip_var),
+                ("Tile size (0 = full array)", tile_var),
+                ("Temporary raster directory", scratch_var),
             ],
             start=1,
         ):
@@ -170,6 +203,10 @@ class GeoMorphXGUI(tk.Tk):
             "anisotropy_weight": anisotropy_weight_var,
             "roughness_weight": roughness_weight_var,
             "structural_weight": structural_weight_var,
+            "flatness_deg": flatness_var,
+            "geomorphon_skip": skip_var,
+            "tile_size": tile_var,
+            "scratch_dir": scratch_var,
         }
 
     def _selected_method_key(self, method_display_name: str) -> str:
@@ -193,8 +230,9 @@ class GeoMorphXGUI(tk.Tk):
             try:
                 fn()
             except Exception as exc:  # noqa: BLE001
-                self.after(0, lambda: messagebox.showerror("GeoMorphX", str(exc)))
-                self.after(0, lambda: self._append_log(f"ERROR: {exc}"))
+                error = str(exc)
+                self.after(0, lambda error=error: messagebox.showerror("GeoMorphX", error))
+                self.after(0, lambda error=error: self._append_log(f"ERROR: {error}"))
 
         threading.Thread(target=wrapped, daemon=True).start()
 
@@ -223,12 +261,16 @@ class GeoMorphXGUI(tk.Tk):
                 anisotropy_weight=float(controls["anisotropy_weight"].get()),
                 roughness_weight=float(controls["roughness_weight"].get()),
                 structural_weight=float(controls["structural_weight"].get()),
+                flatness_deg=float(controls["flatness_deg"].get()),
+                geomorphon_skip=int(controls["geomorphon_skip"].get()),
+                tile_size=int(controls["tile_size"].get()),
+                scratch_dir=(controls["scratch_dir"].get() or None),
                 debug_dir=(debug_var.get() or None),
             )
             self.after(0, lambda: self._append_log(f"Compute OK: {result}"))
 
         ttk.Button(frame, text="Run Compute", command=lambda: self._run_async(run_compute)).grid(
-            row=11, column=1, sticky="e", padx=6, pady=10
+            row=15, column=1, sticky="e", padx=6, pady=10
         )
 
     def _build_compute_batch_tab(self) -> None:
@@ -264,12 +306,16 @@ class GeoMorphXGUI(tk.Tk):
                 anisotropy_weight=float(controls["anisotropy_weight"].get()),
                 roughness_weight=float(controls["roughness_weight"].get()),
                 structural_weight=float(controls["structural_weight"].get()),
+                flatness_deg=float(controls["flatness_deg"].get()),
+                geomorphon_skip=int(controls["geomorphon_skip"].get()),
+                tile_size=int(controls["tile_size"].get()),
+                scratch_dir=(controls["scratch_dir"].get() or None),
                 save_debug=save_debug_var.get(),
             )
             self.after(0, lambda: self._append_log(f"Compute Batch OK: {len(outputs)} files, manifest={manifest}"))
 
         ttk.Button(frame, text="Run Compute Batch", command=lambda: self._run_async(run_compute_batch)).grid(
-            row=11, column=1, sticky="e", padx=6, pady=10
+            row=15, column=1, sticky="e", padx=6, pady=10
         )
 
     def _build_benchmark_tab(self) -> None:

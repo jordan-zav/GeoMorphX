@@ -11,9 +11,8 @@ from qgis.core import (
 )
 from qgis.PyQt.QtGui import QIcon
 
-import numpy as np
 
-from .gmx_raster_utils import local_mean, neighborhood_relief, read_dem_array, write_array_as_geotiff
+from .suite_imports import ensure_suite_importable
 
 
 class GMXTPITWIAlgorithm(QgsProcessingAlgorithm):
@@ -65,25 +64,10 @@ class GMXTPITWIAlgorithm(QgsProcessingAlgorithm):
         out_large = self.parameterAsOutputLayer(parameters, self.OUT_TPI_LARGE, context)
         out_wet = self.parameterAsOutputLayer(parameters, self.OUT_WETNESS, context)
 
-        dem, gt, proj, nodata = read_dem_array(dem_layer.source())
-
-        mean_small = local_mean(dem, ws)
-        mean_large = local_mean(dem, wl)
-
-        tpi_small = (dem - mean_small).astype(np.float32)
-        tpi_large = (dem - mean_large).astype(np.float32)
-
-        dy, dx = abs(float(gt[5])) if gt[5] != 0 else 1.0, abs(float(gt[1])) if gt[1] != 0 else 1.0
-        gy, gx = np.gradient(dem, dy, dx)
-        slope_rad = np.arctan(np.sqrt(gx * gx + gy * gy))
-
-        relief = neighborhood_relief(dem, ws)
-        a_proxy = relief + 1.0
-        wetness_proxy = np.log(a_proxy / (np.tan(slope_rad) + 1e-6)).astype(np.float32)
-
-        write_array_as_geotiff(out_small, tpi_small, gt, proj, nodata=nodata)
-        write_array_as_geotiff(out_large, tpi_large, gt, proj, nodata=nodata)
-        write_array_as_geotiff(out_wet, wetness_proxy, gt, proj, nodata=nodata)
+        ensure_suite_importable()
+        from geomorphx.blocks import compute_tpi_wetness_block
+        compute_tpi_wetness_block(dem_layer.source(), out_small, out_large, out_wet,
+                                  window_small=ws, window_large=wl)
 
         return {
             self.OUT_TPI_SMALL: out_small,

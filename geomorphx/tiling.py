@@ -1,14 +1,19 @@
-"""Tiled processing engine for large rasters."""
+﻿"""Windowed processing with method-specific halos and full-grid safeguards."""
 
 from __future__ import annotations
 
-import math
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Iterable
+import warnings
 
 import numpy as np
-import rasterio
-from rasterio.windows import Window
+from core_py.geomorphx_core.raster_backend import get_backend
+
+rasterio = get_backend()
+Window = rasterio.windows.Window
+
+from core_py.geomorphx_core.io import raster_cell_size, read_dem, write_raster
+from geomorphx.methods import GLOBAL_METHODS, METHODS
 
 
 def compute_tiled(
@@ -24,87 +29,92 @@ def compute_tiled(
     anisotropy_weight: float = 0.35,
     roughness_weight: float = 0.25,
     structural_weight: float = 0.15,
-) -> None:
-    """Compute geomorphometric products by processing the raster in tiles."""
-    with rasterio.open(input_path) as src:
-        profile = src.profile.copy()
-        width = src.width
-        height = src.height
-        nodata = src.nodata
+    flatness_deg: float = 1.0,
+    geomorphon_skip: int = 0,
+    scratch_dir: str | Path | None = None,
+) -> tuple[list[int], dict]:
+    """Compute local products with halos; global methods explicitly use full memory.
 
-    # Determine maximum window size across all methods/scales
-    max_w = window
-    if method in ("rrim_multiscale", "rrim_anisotropic_multiscale", "rrim_structural_multiscale") and scales:
-        max_w = max(scales)
-
-    pad = max_w // 2
-
-    # Update output profile
-    profile.update(
-        dtype=rasterio.float32,
-        count=1,
-        nodata=np.nan,
-        tiled=True,
-        blockxsize=256,
-        blockysize=256,
-    )
-
+    RRIM normalization and hydrological connectivity depend on the whole DEM.
+    Computing them independently per tile would change the scientific result.
+    """
     from geomorphx.api import compute_rrim_array
 
-    with rasterio.open(input_path) as src, rasterio.open(output_path, "w", **profile) as dst:
-        for ty in range(0, height, tile_size):
-            for tx in range(0, width, tile_size):
-                # Target window to write to (without pad)
-                tile_w = min(tile_size, width - tx)
-                tile_h = min(tile_size, height - ty)
-                write_window = Window(tx, ty, tile_w, tile_h)
+    if not isinstance(tile_size, int) or tile_size < 1:
+        raise ValueError("tile_size must be a positive integer")
+    if not isinstance(window, (int, np.integer)) or window < 3:
+        raise ValueError("window must be an integer >= 3")
+    if method not in METHODS:
+        raise ValueError(f"Unknown method: {method}")
+    if Path(input_path).resolve() == Path(output_path).resolve():
+        raise ValueError("Input DEM and output raster must be different files")
+    window += int(window % 2 == 0)
+    scales = None if scales is None else list(scales)
+    from core_py.geomorphx_core.rrim import _parse_azimuths
+    azimuth_deg = _parse_azimuths(azimuth_deg)
+    parameters = dict(
+        method=method, window=window, scales=scales, azimuth_deg=azimuth_deg,
+        directional_weight=directional_weight, anisotropy_weight=anisotropy_weight,
+        roughness_weight=roughness_weight, structural_weight=structural_weight,
+        flatness_deg=flatness_deg, geomorphon_skip=geomorphon_skip,
+    )
+    if method.startswith("rrim_"):
+        from geomorphx.streaming import compute_rrim_streamed
+        return compute_rrim_streamed(
+            input_path, output_path, method=method, tile_size=tile_size, window=window,
+            scales=scales, azimuth_deg=azimuth_deg, directional_weight=directional_weight,
+            anisotropy_weight=anisotropy_weight, roughness_weight=roughness_weight,
+            structural_weight=structural_weight,
+            scratch_dir=scratch_dir,
+        )
+    if method in GLOBAL_METHODS:
+        warnings.warn(
+            f"{method} requires global context: using full DEM in memory; "
+            "tile_size does not bound memory for this method.",
+            RuntimeWarning, stacklevel=2,
+        )
+        dem, profile = read_dem(input_path)
+        out, used_scales, metadata = compute_rrim_array(
+            dem, cell_size=raster_cell_size(profile, method=method), **parameters,
+        )
+        write_raster(output_path, out, profile)
+        metadata.update(processing_mode="full_grid_fallback", requested_tile_size=tile_size)
+        return used_scales, metadata
 
-                # Read window with pad (expanding bounds)
-                read_x = max(0, tx - pad)
-                read_y = max(0, ty - pad)
-                read_w = min(width, tx + tile_w + pad) - read_x
-                read_h = min(height, ty + tile_h + pad) - read_y
-                read_window = Window(read_x, read_y, read_w, read_h)
+    if method.startswith("curvature_"):
+        pad = 2  # Two successive gradient operators.
+    elif method in {"slope", "aspect", "hillshade", "multidirectional_hillshade", "tri_riley"}:
+        pad = 1
+    else:
+        pad = window // 2
 
-                # Read data
-                dem_tile = src.read(1, window=read_window).astype(np.float32)
-
-                # Handle NoData
-                if nodata is not None:
-                    dem_tile[dem_tile == nodata] = np.nan
-
-                # Determine padding needed if we hit DEM boundaries
-                pad_top = read_y - (ty - pad)
-                pad_bottom = (ty + tile_h + pad) - (read_y + read_h)
-                pad_left = read_x - (tx - pad)
-                pad_right = (tx + tile_w + pad) - (read_x + read_w)
-
-                if pad_top > 0 or pad_bottom > 0 or pad_left > 0 or pad_right > 0:
-                    dem_tile = np.pad(
-                        dem_tile,
-                        ((pad_top, pad_bottom), (pad_left, pad_right)),
-                        mode="edge",
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    with rasterio.open(input_path) as src:
+        if src.count != 1:
+            raise ValueError("DEM must have exactly one raster band")
+        profile = src.profile.copy()
+        cell_size = raster_cell_size(profile, method=method)
+        if method in {"geomorphons", "geomorphon_ternary"}:
+            from core_py.geomorphx_core.geomorphons import search_geometry
+            _, pad = search_geometry(window // 2, geomorphon_skip, cell_size)
+        profile.update(dtype="float32", count=1, nodata=np.nan,
+                       tiled=True, blockxsize=256, blockysize=256)
+        with rasterio.open(output_path, "w", **profile) as dst:
+            for ty in range(0, src.height, tile_size):
+                for tx in range(0, src.width, tile_size):
+                    tile_w = min(tile_size, src.width - tx)
+                    tile_h = min(tile_size, src.height - ty)
+                    rx, ry = max(0, tx - pad), max(0, ty - pad)
+                    rw = min(src.width, tx + tile_w + pad) - rx
+                    rh = min(src.height, ty + tile_h + pad) - ry
+                    dem = src.read(1, window=Window(rx, ry, rw, rh), masked=True)
+                    dem = dem.astype(np.float32).filled(np.nan)
+                    out, used_scales, metadata = compute_rrim_array(
+                        dem, cell_size=cell_size, **parameters,
                     )
-
-                # Run compute
-                out_tile, _, _ = compute_rrim_array(
-                    dem_tile,
-                    method=method,
-                    scales=scales,
-                    window=window,
-                    azimuth_deg=azimuth_deg,
-                    directional_weight=directional_weight,
-                    anisotropy_weight=anisotropy_weight,
-                    roughness_weight=roughness_weight,
-                    structural_weight=structural_weight,
-                )
-
-                # Crop out the pad
-                crop_y_start = pad
-                crop_y_end = pad + tile_h
-                crop_x_start = pad
-                crop_x_end = pad + tile_w
-                cropped = out_tile[crop_y_start:crop_y_end, crop_x_start:crop_x_end]
-
-                # Write to destination
-                dst.write(cropped, 1, window=write_window)
+                    # Keep the actual raster edge: pre-padding would alter derivatives.
+                    y0, x0 = ty - ry, tx - rx
+                    dst.write(out[y0:y0 + tile_h, x0:x0 + tile_w].astype(np.float32),
+                              1, window=Window(tx, ty, tile_w, tile_h))
+    metadata.update(processing_mode="windowed", tile_size=tile_size, halo_px=pad)
+    return used_scales, metadata

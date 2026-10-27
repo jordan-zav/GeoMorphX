@@ -8,8 +8,7 @@ transparent processing recipe that a user can inspect, save, modify and rerun.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-import json
-from pathlib import Path
+import math
 from typing import Any
 
 from geomorphx.api import compute_rrim
@@ -26,6 +25,26 @@ class Recommendation:
 
 
 _OBJECTIVES: dict[str, tuple[str, tuple[tuple[str, str, str], ...]]] = {
+    "hydrology_mfd": (
+        "Exploración de drenaje mediante flujo múltiple de Freeman, exponente 1.1.",
+        (("fill_depressions", "diagnostic", "Permite inspeccionar el relleno de depresiones."),
+         ("flow_accumulation_mfd", "primary", "Distribuye el aporte entre vecinos de menor elevación."),
+         ("twi_mfd", "support", "Índice topográfico con área de flujo múltiple; no equivale a humedad observada.")),
+    ),
+    "drainage": (
+        "Dirección, cuencas y longitud aguas abajo de la red D8.",
+        (("flow_direction_d8", "primary", "Conserva el sentido de salida de cada celda."),
+         ("drainage_basins_d8", "primary", "Agrupa las celdas que comparten salida del DEM."),
+         ("flow_length_d8", "diagnostic", "Mide la distancia acumulada hasta la salida.")),
+    ),
+    "landforms": (
+        "Clasificación exploratoria de diez formas mediante horizontes en ocho direcciones.",
+        (
+            ("geomorphons", "primary", "Clasifica formas por patrones de líneas de visión; comparación anglev1."),
+            ("geomorphon_ternary", "diagnostic", "Conserva el patrón invariante para revisar la clasificación."),
+            ("slope", "context", "Permite contrastar las clases con la pendiente física del terreno."),
+        ),
+    ),
     "general_relief": (
         "Lectura general del relieve sin depender de una sola dirección de luz.",
         (
@@ -65,7 +84,15 @@ _OBJECTIVES: dict[str, tuple[str, tuple[tuple[str, str, str], ...]]] = {
         (
             ("rrim_plus", "primary", "Combina relieve local, pendiente, rugosidad y estructura."),
             ("curvature_profile", "diagnostic", "Ayuda a localizar cambios de convexidad en la dirección de máxima pendiente."),
-            ("tri", "diagnostic", "Resume rugosidad local para contrastar superficies alteradas."),
+            ("tri_riley", "diagnostic", "Rugosidad de Riley respecto de ocho vecinos."),
+        ),
+    ),
+    "hydrology": (
+        "Exploración de drenaje superficial mediante relleno de depresiones y flujo D8.",
+        (
+            ("fill_depressions", "diagnostic", "Permite inspeccionar la modificación de depresiones."),
+            ("flow_accumulation_d8", "primary", "Cuenta las celdas contribuyentes tras rellenar depresiones."),
+            ("twi_d8", "support", "Combina área contribuyente D8 y pendiente; no modela humedad observada."),
         ),
     ),
 }
@@ -97,11 +124,13 @@ def recommend(
     """
     if objective not in _OBJECTIVES:
         raise ValueError(f"objective must be one of: {', '.join(available_objectives())}")
-    if pixel_size_m <= 0:
+    if not math.isfinite(pixel_size_m) or pixel_size_m <= 0:
         raise ValueError("pixel_size_m must be > 0")
     if (feature_min_m is None) != (feature_max_m is None):
         raise ValueError("feature_min_m and feature_max_m must be provided together")
-    if feature_min_m is not None and (feature_min_m <= 0 or feature_max_m is None or feature_max_m < feature_min_m):
+    if feature_min_m is not None and (not math.isfinite(feature_min_m) or feature_max_m is None
+                                    or not math.isfinite(feature_max_m)
+                                    or feature_min_m <= 0 or feature_max_m < feature_min_m):
         raise ValueError("feature sizes must be positive and feature_max_m must be >= feature_min_m")
 
     if feature_min_m is None:
@@ -116,7 +145,10 @@ def recommend(
     recommendations: list[Recommendation] = []
     for method, role, rationale in entries:
         parameters: dict[str, Any] = {}
-        if "multiscale" in method:
+        if method in {"geomorphons", "geomorphon_ternary"}:
+            # Radius >= 3 permits multiple samples along diagonal rays.
+            parameters.update(window=max(7, scales[len(scales) // 2]), flatness_deg=1.0, geomorphon_skip=0)
+        elif "multiscale" in method:
             parameters["scales"] = scales
         elif method in {
             "rrim_plus",
@@ -127,7 +159,7 @@ def recommend(
             "negative_openness",
             "sky_view_factor",
         }:
-            parameters["window"] = scales[1]
+            parameters["window"] = scales[len(scales) // 2]
         recommendations.append(Recommendation(method, role, parameters, rationale))
 
     return {
@@ -146,66 +178,7 @@ def recommend(
     }
 
 
-def execute_recipe(
-    recipe: dict[str, Any],
-    *,
-    dem_path: str | Path,
-    out_dir: str | Path,
-) -> tuple[list[Path], Path]:
-    """Run every method in a recommendation recipe and write a manifest.
-
-    The recipe is intentionally explicit: only the listed method identifiers and
-    parameters are executed.  This makes it possible to retain, review and rerun
-    a visualization decision without hidden defaults in a GUI session.
-    """
-    if recipe.get("schema_version") != "1.0":
-        raise ValueError("unsupported or missing recipe schema_version")
-    entries = recipe.get("recommendations")
-    if not isinstance(entries, list) or not entries:
-        raise ValueError("recipe must contain at least one recommendation")
-
-    target = Path(out_dir)
-    target.mkdir(parents=True, exist_ok=True)
-    outputs: list[Path] = []
-    manifest_entries: list[dict[str, Any]] = []
-    for index, entry in enumerate(entries, start=1):
-        method = entry.get("method")
-        parameters = entry.get("parameters", {})
-        if not isinstance(method, str) or not method:
-            raise ValueError("each recommendation must define a method")
-        if not isinstance(parameters, dict):
-            raise ValueError("recommendation parameters must be an object")
-
-        output = target / f"{index:02d}_{method}.tif"
-        produced = compute_rrim(
-            dem_path=dem_path,
-            out_path=output,
-            method=method,
-            **parameters,
-        )
-        outputs.append(produced)
-        manifest_entries.append(
-            {
-                "role": entry.get("role", "unspecified"),
-                "method": method,
-                "parameters": parameters,
-                "rationale": entry.get("rationale", ""),
-                "output": str(produced),
-                "metadata": str(produced) + ".meta.json",
-            }
-        )
-
-    manifest = target / "recipe_run_manifest.json"
-    manifest.write_text(
-        json.dumps(
-            {
-                "recipe": recipe,
-                "input_dem": str(dem_path),
-                "outputs": manifest_entries,
-            },
-            indent=2,
-            ensure_ascii=False,
-        ) + "\n",
-        encoding="utf-8",
-    )
-    return outputs, manifest
+def execute_recipe(recipe, *, dem_path, out_dir):
+    """Compatibility entry point; accepts all supported recipe formats."""
+    from geomorphx.recipes import _execute_recipe
+    return _execute_recipe(recipe, dem_path=dem_path, out_dir=out_dir, compute=compute_rrim)

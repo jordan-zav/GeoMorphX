@@ -10,9 +10,8 @@ from qgis.core import (
 )
 from qgis.PyQt.QtGui import QIcon
 
-import numpy as np
 
-from .gmx_raster_utils import read_dem_array, write_array_as_geotiff
+from .suite_imports import ensure_suite_importable
 
 
 class GMXCurvatureAlgorithm(QgsProcessingAlgorithm):
@@ -54,29 +53,9 @@ class GMXCurvatureAlgorithm(QgsProcessingAlgorithm):
         out_plan = self.parameterAsOutputLayer(parameters, self.OUT_PLAN, context)
         out_mean = self.parameterAsOutputLayer(parameters, self.OUT_MEAN, context)
 
-        dem, gt, proj, nodata = read_dem_array(dem_layer.source())
-        dx = abs(float(gt[1])) if gt[1] != 0 else 1.0
-        dy = abs(float(gt[5])) if gt[5] != 0 else 1.0
-
-        q, p = np.gradient(dem, dy, dx)
-        qy, qx = np.gradient(q, dy, dx)
-        py, px = np.gradient(p, dy, dx)
-
-        r = px
-        s = 0.5 * (py + qx)
-        t = qy
-
-        eps = 1e-9
-        g = p * p + q * q
-        g_safe = np.maximum(g, eps)
-
-        profile = -(r * p * p + 2.0 * s * p * q + t * q * q) / (g_safe * np.power(1.0 + g_safe, 1.5))
-        plan = (r * q * q - 2.0 * s * p * q + t * p * p) / np.power(g_safe, 1.5)
-        mean = -((1.0 + q * q) * r - 2.0 * p * q * s + (1.0 + p * p) * t) / (2.0 * np.power(1.0 + g_safe, 1.5))
-
-        write_array_as_geotiff(out_profile, profile.astype(np.float32), gt, proj, nodata=nodata)
-        write_array_as_geotiff(out_plan, plan.astype(np.float32), gt, proj, nodata=nodata)
-        write_array_as_geotiff(out_mean, mean.astype(np.float32), gt, proj, nodata=nodata)
+        ensure_suite_importable()
+        from geomorphx.blocks import compute_curvature_block
+        compute_curvature_block(dem_layer.source(), out_profile, out_plan, out_mean)
 
         return {
             self.OUT_PROFILE: out_profile,

@@ -5,6 +5,16 @@ use numpy::{IntoPyArray, PyArray2, PyReadonlyArray2};
 use pyo3::prelude::*;
 use rayon::prelude::*;
 
+fn validate_grid(dem: &ArrayView2<f32>, window: usize) -> PyResult<()> {
+    if dem.is_empty() {
+        return Err(pyo3::exceptions::PyValueError::new_err("DEM cannot be empty"));
+    }
+    if window < 3 || window % 2 == 0 || window.checked_mul(window).is_none() {
+        return Err(pyo3::exceptions::PyValueError::new_err("window must be odd and >= 3"));
+    }
+    Ok(())
+}
+
 fn numpy_gradient(dem_view: &ArrayView2<f32>) -> (ndarray::Array2<f32>, ndarray::Array2<f32>) {
     let rows = dem_view.shape()[0];
     let cols = dem_view.shape()[1];
@@ -42,8 +52,9 @@ fn local_relief_rs<'py>(
     py: Python<'py>,
     dem: PyReadonlyArray2<'py, f32>,
     window: usize,
-) -> &'py PyArray2<f32> {
+) -> PyResult<Bound<'py, PyArray2<f32>>> {
     let dem_view = dem.as_array();
+    validate_grid(&dem_view, window)?;
     let rows = dem_view.shape()[0];
     let cols = dem_view.shape()[1];
     let radius = (window / 2) as isize;
@@ -65,6 +76,10 @@ fn local_relief_rs<'py>(
                     for wc in -radius..=radius {
                         let pc = (c_isize + wc).clamp(0, (cols - 1) as isize) as usize;
                         let val = dem_view[[pr, pc]];
+                        if !val.is_finite() {
+                            min_val = f32::NAN;
+                            max_val = f32::NAN;
+                        }
                         if val < min_val {
                             min_val = val;
                         }
@@ -77,7 +92,7 @@ fn local_relief_rs<'py>(
             }
         });
 
-    out.into_pyarray(py)
+    Ok(out.into_pyarray_bound(py))
 }
 
 #[pyfunction]
@@ -85,12 +100,13 @@ fn local_std_rs<'py>(
     py: Python<'py>,
     dem: PyReadonlyArray2<'py, f32>,
     window: usize,
-) -> &'py PyArray2<f32> {
+) -> PyResult<Bound<'py, PyArray2<f32>>> {
     let dem_view = dem.as_array();
+    validate_grid(&dem_view, window)?;
     let rows = dem_view.shape()[0];
     let cols = dem_view.shape()[1];
     let radius = (window / 2) as isize;
-    let n = (window * window) as f32;
+    let n = (window * window) as f64;
 
     let mut out = ndarray::Array2::<f32>::zeros((rows, cols));
 
@@ -107,7 +123,7 @@ fn local_std_rs<'py>(
                     let pr = (r_isize + wr).clamp(0, (rows - 1) as isize) as usize;
                     for wc in -radius..=radius {
                         let pc = (c_isize + wc).clamp(0, (cols - 1) as isize) as usize;
-                        sum += dem_view[[pr, pc]];
+                        sum += dem_view[[pr, pc]] as f64;
                     }
                 }
                 let mean = sum / n;
@@ -117,15 +133,15 @@ fn local_std_rs<'py>(
                     let pr = (r_isize + wr).clamp(0, (rows - 1) as isize) as usize;
                     for wc in -radius..=radius {
                         let pc = (c_isize + wc).clamp(0, (cols - 1) as isize) as usize;
-                        let diff = dem_view[[pr, pc]] - mean;
+                        let diff = dem_view[[pr, pc]] as f64 - mean;
                         sq_sum += diff * diff;
                     }
                 }
-                out_row[c] = (sq_sum / n).sqrt();
+                out_row[c] = (sq_sum / n).sqrt() as f32;
             }
         });
 
-    out.into_pyarray(py)
+    Ok(out.into_pyarray_bound(py))
 }
 
 #[pyfunction]
@@ -133,12 +149,13 @@ fn local_mean_rs<'py>(
     py: Python<'py>,
     dem: PyReadonlyArray2<'py, f32>,
     window: usize,
-) -> &'py PyArray2<f32> {
+) -> PyResult<Bound<'py, PyArray2<f32>>> {
     let dem_view = dem.as_array();
+    validate_grid(&dem_view, window)?;
     let rows = dem_view.shape()[0];
     let cols = dem_view.shape()[1];
     let radius = (window / 2) as isize;
-    let n = (window * window) as f32;
+    let n = (window * window) as f64;
 
     let mut out = ndarray::Array2::<f32>::zeros((rows, cols));
 
@@ -154,14 +171,14 @@ fn local_mean_rs<'py>(
                     let pr = (r_isize + wr).clamp(0, (rows - 1) as isize) as usize;
                     for wc in -radius..=radius {
                         let pc = (c_isize + wc).clamp(0, (cols - 1) as isize) as usize;
-                        sum += dem_view[[pr, pc]];
+                        sum += dem_view[[pr, pc]] as f64;
                     }
                 }
-                out_row[c] = sum / n;
+                out_row[c] = (sum / n) as f32;
             }
         });
 
-    out.into_pyarray(py)
+    Ok(out.into_pyarray_bound(py))
 }
 
 #[pyfunction]
@@ -169,8 +186,12 @@ fn directional_gradient_response_rs<'py>(
     py: Python<'py>,
     dem: PyReadonlyArray2<'py, f32>,
     azimuth_deg: f32,
-) -> &'py PyArray2<f32> {
+) -> PyResult<Bound<'py, PyArray2<f32>>> {
     let dem_view = dem.as_array();
+    validate_grid(&dem_view, 3)?;
+    if !azimuth_deg.is_finite() {
+        return Err(pyo3::exceptions::PyValueError::new_err("azimuth must be finite"));
+    }
     let (gy, gx) = numpy_gradient(&dem_view);
 
     let theta = (azimuth_deg % 360.0).to_radians();
@@ -188,11 +209,11 @@ fn directional_gradient_response_rs<'py>(
             *resp = (x * ux + y * uy).abs();
         });
 
-    response.into_pyarray(py)
+    Ok(response.into_pyarray_bound(py))
 }
 
 #[pymodule]
-fn geomorphx_core_rs(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn geomorphx_core_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(local_relief_rs, m)?)?;
     m.add_function(wrap_pyfunction!(local_std_rs, m)?)?;
     m.add_function(wrap_pyfunction!(local_mean_rs, m)?)?;

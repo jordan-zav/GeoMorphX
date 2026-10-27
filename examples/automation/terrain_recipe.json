@@ -1,0 +1,10 @@
+{
+  "format": "geomorphx-recipe",
+  "schema_version": "1.0",
+  "metadata": {"title": "Slope and terrain forms"},
+  "input_assumptions": {},
+  "products": [
+    {"method": "slope", "parameters": {"tile_size": 512}},
+    {"method": "geomorphons", "parameters": {"window": 9, "flatness_deg": 1.0, "tile_size": 512}}
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:geomorphx:recipe:1.0",
+  "title": "GeoMorphX portable recipe 1.0",
+  "type": "object",
+  "required": ["format", "schema_version", "products"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": "geomorphx-recipe"},
+    "schema_version": {"const": "1.0"},
+    "metadata": {"type": "object"},
+    "input_assumptions": {
+      "type": "object",
+      "properties": {"pixel_size_m": {"type": ["number", "null"], "exclusiveMinimum": 0}}
+    },
+    "products": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["method"],
+        "additionalProperties": false,
+        "properties": {
+          "method": {"enum": [
+            "rrim_baseline", "rrim_multiscale", "rrim_anisotropic",
+            "rrim_anisotropic_multiscale", "rrim_structural", "rrim_plus",
+            "rrim_structural_multiscale", "slope", "aspect", "hillshade",
+            "multidirectional_hillshade", "positive_openness", "negative_openness",
+            "sky_view_factor", "curvature_profile", "curvature_plan", "curvature_mean",
+            "tpi", "tri", "wetness_proxy", "local_relief", "tri_riley",
+            "fill_depressions", "flow_accumulation_d8", "twi_d8", "geomorphons",
+            "geomorphon_ternary", "flow_direction_d8", "drainage_basins_d8",
+            "flow_length_d8", "flow_accumulation_mfd", "twi_mfd"
+          ]},
+          "role": {"type": "string"},
+          "rationale": {"type": "string"},
+          "parameters": {"$ref": "#/$defs/parameters"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "window": {"type": "integer", "minimum": 3, "default": 9},
+        "scales": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 3}, "default": [5, 15, 45]},
+        "azimuth_deg": {"anyOf": [{"type": "number"}, {"type": "string"}, {"type": "array", "items": {"type": "number"}}], "default": 0},
+        "tile_size": {"type": "integer", "minimum": 0, "default": 0},
+        "flatness_deg": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 90, "default": 1},
+        "geomorphon_skip": {"type": "integer", "minimum": 0, "default": 0},
+        "directional_weight": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.5},
+        "anisotropy_weight": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.35},
+        "roughness_weight": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.25},
+        "structural_weight": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.15}
+      }
+    }
+  }
+}

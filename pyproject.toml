@@ -15,6 +15,8 @@ dependencies = [
 [project.optional-dependencies]
 raster = ["rasterio>=1.3"]
 scientific = ["scipy>=1.10", "scikit-image>=0.21", "numba>=0.58", "xarray>=2023.1.0"]
+dev = ["pytest>=7", "rasterio>=1.3", "matplotlib>=3.7", "maturin>=1.0,<2.0"]
+notebooks = ["nbformat>=5.9", "nbclient>=0.8", "ipykernel>=6.25", "matplotlib>=3.7", "rasterio>=1.3"]
 
 [project.scripts]
 geomorphx = "cli.geomorphx_cli:main"
@@ -26,3 +28,4 @@ features = ["pyo3/extension-module"]
 manifest-path = "core_rs/Cargo.toml"
 python-source = "."
 module-name = "geomorphx.geomorphx_core_rs"
+python-packages = ["geomorphx", "core_py", "cli", "standalone_app"]

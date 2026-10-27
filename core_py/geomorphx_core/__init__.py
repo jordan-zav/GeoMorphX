@@ -1,5 +1,11 @@
 """Core scientific methods for GeoMorphX."""
 
+from core_py.geomorphx_core.hydrology import (
+    fill_depressions, flow_accumulation_d8, twi_d8, d8_drainage_products,
+    flow_accumulation_mfd, twi_mfd,
+)
+from core_py.geomorphx_core.geomorphons import geomorphons, geomorphon_components
+
 from core_py.geomorphx_core.rrim import (
     rrim_anisotropic,
     rrim_anisotropic_multiscale,
@@ -24,6 +30,8 @@ from core_py.geomorphx_core.terrain import (
     tpi,
     tri,
     wetness_proxy,
+    local_relief,
+    tri_riley,
 )
 
 __all__ = [
@@ -48,4 +56,14 @@ __all__ = [
     "tpi",
     "tri",
     "wetness_proxy",
+    "local_relief",
+    "tri_riley",
+    "fill_depressions",
+    "flow_accumulation_d8",
+    "twi_d8",
+    "d8_drainage_products",
+    "flow_accumulation_mfd",
+    "twi_mfd",
+    "geomorphons",
+    "geomorphon_components",
 ]

@@ -1,15 +1,16 @@
 [general]
-name=GeoMorphX RRIM Suite
-qgisMinimumVersion=3.22
-description=Classic RRIM + GeoMorphX suite + geomorphometry blocks for QGIS
-about=Built from the released QGIS-RRIM template and extended to expose GeoMorphX suite tools in QGIS Processing: compute, compute-batch, benchmark, benchmark-batch, geomorphons (simplified), curvature block, and TPI/wetness proxy block.
-version=0.4.0
-author=GeoMorphX
-email=
+name=GeoMorphX
+qgisMinimumVersion=3.28
+qgisMaximumVersion=3.99
+description=Terrain workbench, multiscale geomorphometry and RRIM inside QGIS
+about=Dockable DEM product workbench with background processing, reusable recipes, styled landforms and named Processing algorithms. Includes the shared Python core and uses native GDAL when Rasterio is absent. Experimental RRIM variants and optional hydrological tools retain documented limits.
+version=0.5.1
+author=Jordan Zavaleta
+email=jordanzav@gisgeo.dev
 repository=
 tracker=
 homepage=
-experimental=False
+experimental=True
 deprecated=False
 hasProcessingProvider=yes
 icon=icon.png

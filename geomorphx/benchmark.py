@@ -113,6 +113,7 @@ def benchmark_methods(
         raise ValueError("repeats must be >= 1")
 
     tiles = _split_tiles(dem, tile_size=tile_size)
+    scales = tuple(scales)
     rows: list[BenchmarkRow] = []
     for method in methods:
         runtimes: list[float] = []
@@ -179,6 +180,8 @@ def save_benchmark_outputs(
         "source": source,
         "dem_shape": [int(dem_shape[0]), int(dem_shape[1])],
         "tile_size": int(tile_size),
+        "benchmark_mode": "independent_tile_microbenchmark" if tile_size else "full_array",
+        "spatial_equivalence_validated": False,
         "rows": [asdict(row) for row in rows],
     }
     json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -187,15 +190,18 @@ def save_benchmark_outputs(
     md_lines = [
         "# GeoMorphX Benchmark Report",
         "",
-        f"- Source: `{source}`",
-        f"- DEM shape: `{dem_shape[0]} x {dem_shape[1]}`",
-        f"- Tile size: `{tile_size}` (0 = disabled)",
+        f"- Source: {source}",
+        f"- DEM shape: {dem_shape[0]} x {dem_shape[1]}",
+        f"- Tile size: {tile_size} (0 = disabled)",
+        "",
+        "Tile timings process independent arrays without halos or shared normalization. "
+        "They do not validate spatial equivalence or the windowed raster pipeline.",
         "",
         "## Ranking (Fastest to Slowest)",
         "",
     ]
     for idx, row in enumerate(ranked, start=1):
-        md_lines.append(f"{idx}. `{row.method}` - {row.runtime_ms_mean:.3f} ms")
+        md_lines.append(f"{idx}. {row.method} - {row.runtime_ms_mean:.3f} ms")
     md_lines.extend(
         [
             "",
@@ -362,7 +368,7 @@ def run_benchmark_batch(
     lines = [
         "# GeoMorphX Batch Benchmark Summary",
         "",
-        f"- Inputs: `{len(rows)}` DEM files",
+        f"- Inputs: {len(rows)} DEM files",
         "",
         "| dem_path | output_dir | fastest_method | fastest_runtime_ms |",
         "|---|---|---|---:|",

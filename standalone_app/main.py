@@ -5,26 +5,11 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from geomorphx.methods import METHODS
 from geomorphx.api import compute_rrim_batch
 from geomorphx.benchmark import run_benchmark_batch
 
-_METHODS = [
-    "rrim_baseline",
-    "rrim_multiscale",
-    "rrim_anisotropic",
-    "rrim_anisotropic_multiscale",
-    "rrim_structural",
-    "rrim_plus",
-    "slope",
-    "aspect",
-    "hillshade",
-    "curvature_profile",
-    "curvature_plan",
-    "curvature_mean",
-    "tpi",
-    "tri",
-    "wetness_proxy",
-]
+_METHODS = METHODS
 
 
 def _parse_scales(raw: str) -> list[int]:
@@ -45,6 +30,8 @@ def build_parser() -> argparse.ArgumentParser:
     compute_batch.add_argument("--recursive", action="store_true")
     compute_batch.add_argument("--method", choices=_METHODS, default="rrim_baseline")
     compute_batch.add_argument("--window", type=int, default=9)
+    compute_batch.add_argument("--flatness-deg", type=float, default=1.0, help="Geomorphon flatness angle in degrees")
+    compute_batch.add_argument("--geomorphon-skip", type=int, default=0, help="Geomorphon inner ray steps to skip")
     compute_batch.add_argument("--scales", default="5,15,45")
     compute_batch.add_argument("--azimuth", type=float, default=45.0)
     compute_batch.add_argument("--directional-weight", type=float, default=0.6)
@@ -52,6 +39,8 @@ def build_parser() -> argparse.ArgumentParser:
     compute_batch.add_argument("--roughness-weight", type=float, default=0.25)
     compute_batch.add_argument("--structural-weight", type=float, default=0.2)
     compute_batch.add_argument("--save-debug", action="store_true")
+    compute_batch.add_argument("--tile-size", type=int, default=0)
+    compute_batch.add_argument("--scratch-dir", type=Path, default=None, help="Directory for retained RRIM raster stages")
 
     bench_batch = sub.add_parser("benchmark-batch", help="Benchmark many DEM files")
     bench_batch.add_argument("--dem-dir", required=True, type=Path)
@@ -86,6 +75,10 @@ def main(argv: list[str] | None = None) -> int:
             roughness_weight=args.roughness_weight,
             structural_weight=args.structural_weight,
             save_debug=args.save_debug,
+            scratch_dir=args.scratch_dir,
+            flatness_deg=args.flatness_deg,
+            geomorphon_skip=args.geomorphon_skip,
+            tile_size=args.tile_size,
         )
         print(f"Computed files: {len(outputs)}")
         print(f"Manifest: {manifest}")

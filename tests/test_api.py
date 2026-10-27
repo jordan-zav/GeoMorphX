@@ -14,6 +14,13 @@ def test_rrim_plus_components_contract():
     assert comps["composite"].shape == dem.shape
 
 
+def test_generator_azimuths_are_not_consumed_before_processing():
+    dem = np.random.default_rng(9).normal(size=(9, 11)).astype(np.float32)
+    expected, _, _ = api.compute_rrim_array(dem, method="rrim_anisotropic", azimuth_deg=[0, 90])
+    actual, _, _ = api.compute_rrim_array(dem, method="rrim_anisotropic", azimuth_deg=iter([0, 90]))
+    np.testing.assert_allclose(actual, expected)
+
+
 def test_compute_rrim_array_structural_multiscale_metadata():
     dem = np.arange(400, dtype=np.float32).reshape(20, 20)
     output, scales, metadata = api.compute_rrim_array(

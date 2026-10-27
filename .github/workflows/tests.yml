@@ -1,0 +1,30 @@
+name: Python and Rust package
+on: [push, pull_request]
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.10', '3.11', '3.12']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: dtolnay/rust-toolchain@stable
+      - run: python -m pip install maturin pytest numpy rasterio matplotlib
+      - name: Check Python fallback
+        run: python -m pytest -q
+      - name: Build and install complete wheel
+        shell: bash
+        run: |
+          python -m maturin build --release --out dist -j 2
+          python -m pip install --no-deps dist/*.whl
+      - name: Test installed package and Rust outside checkout
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          python -c "from geomorphx import geomorphx_core_rs"
+          python -m pytest "$GITHUB_WORKSPACE/tests" --import-mode=importlib -q
+          geomorphx --help
