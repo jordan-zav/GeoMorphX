@@ -33,3 +33,5 @@ Thumbs.db
 # Local DevResources launch configuration
 .devresources.local.cmd
 .devresources.runner.ps1
+
+AGENTS.md
